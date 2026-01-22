@@ -1,12 +1,30 @@
 use std::time::Duration;
 
+use clap::Parser as _;
 use sysinfo::System;
 
 use self::datastore::Datastore;
 
 mod datastore;
 
+#[derive(Debug, clap::Parser)]
+struct Args {
+    /// CPU usage threshold
+    #[clap(long, default_value_t = 90)]
+    cpu: u32,
+
+    /// Memory usage threshold
+    #[clap(long, default_value_t = 90)]
+    mem: u32,
+
+    /// Polling interval
+    #[clap(long, default_value_t = 50)]
+    interval: u32,
+}
+
 fn main() {
+    let args = Args::parse();
+
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -15,12 +33,15 @@ fn main() {
     let ncpu = sys.cpus().len();
     let memlim = sys.total_memory() / 10;
 
+    let cpu_recording = (ncpu as f32) * 5.0;
+    let cpu_threshold = (ncpu as f32) * (args.cpu as f32);
+
     let mut data = Datastore::new(ncpu);
     loop {
         sys.refresh_all();
 
         for (pid, proc) in sys.processes() {
-            if proc.cpu_usage() > 0.4 || proc.memory() > memlim {
+            if proc.cpu_usage() > cpu_recording || proc.memory() > memlim {
                 data.observe(
                     *pid,
                     proc.cpu_usage() as f64,
@@ -29,7 +50,7 @@ fn main() {
             }
         }
 
-        if sys.global_cpu_usage() > (0.9 * (ncpu as f32) * 100.0) {
+        if sys.global_cpu_usage() > cpu_threshold {
             println!("CPU Threshold Exceeded: {:.2}%", sys.global_cpu_usage());
             let mut procs = data.get(0.5 * (ncpu as f64) * 100.0, 0.2);
             procs.sort_by(|a, b| a.cpu().partial_cmp(&b.cpu()).unwrap().reverse());
