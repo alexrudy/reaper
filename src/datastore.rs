@@ -30,6 +30,10 @@ impl Datastore {
             .filter(|p| p.cpu() >= cpu && p.mem() >= mem)
             .collect()
     }
+
+    pub fn all(&self) -> Vec<&Process> {
+        self.processes.values().collect()
+    }
 }
 
 #[derive(Debug)]
