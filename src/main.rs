@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use clap::Parser as _;
 use sysinfo::System;
@@ -37,6 +37,7 @@ fn main() {
     let cpu_threshold = (ncpu as f32) * (args.cpu as f32);
 
     let mut data = Datastore::new(ncpu);
+    let mut shown: Option<Instant> = None;
     loop {
         sys.refresh_all();
 
@@ -49,22 +50,25 @@ fn main() {
                 );
             }
         }
+        if shown.is_none_or(|when| when.elapsed() > Duration::from_secs(5)) {
+            shown = Some(Instant::now());
 
-        if sys.global_cpu_usage() > cpu_threshold {
-            println!("CPU Threshold Exceeded: {:.2}%", sys.global_cpu_usage());
-            let mut procs = data.get(0.5 * (ncpu as f64) * 100.0, 0.2);
-            if procs.is_empty() {
-                procs = data.all();
-            }
+            if sys.global_cpu_usage() > cpu_threshold {
+                println!("CPU Threshold Exceeded: {:.2}%", sys.global_cpu_usage());
+                let mut procs = data.get(0.5 * (ncpu as f64) * 100.0, 0.2);
+                if procs.is_empty() {
+                    procs = data.all();
+                }
 
-            procs.sort_by(|a, b| a.cpu().partial_cmp(&b.cpu()).unwrap().reverse());
-            for proc in procs.iter().take(20) {
-                println!(
-                    "PID: {}, CPU: {:.2}%, MEM: {:.2}%",
-                    proc.id(),
-                    proc.cpu() * 100.0,
-                    proc.mem() * 100.0
-                );
+                procs.sort_by(|a, b| a.cpu().partial_cmp(&b.cpu()).unwrap().reverse());
+                for proc in procs.iter().take(20) {
+                    println!(
+                        "PID: {}, CPU: {:.2}%, MEM: {:.2}%",
+                        proc.id(),
+                        proc.cpu() * 100.0,
+                        proc.mem() * 100.0
+                    );
+                }
             }
         }
 
